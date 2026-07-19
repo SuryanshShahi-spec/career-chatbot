@@ -13,4 +13,6 @@ __pycache__/
 *.pyc
 chroma_db/
 .venv/
-
+test/
+redis_test.py
+my_redis.py
