@@ -1,24 +1,4 @@
-"""
-adzuna_scraper.py
-=================
-Scrapes job listings from the Adzuna API and stores the results in a
-single CSV file containing:
-  - Job Title
-  - Job Description
-  - Estimated Salary
-  - Location
-  - URL
 
-Credentials are loaded from the project-root .env file:
-  ADZUNA_APP_ID   = <your app id>
-  ADZUNA_API_IKEY = <your api key>     (note: the key name uses "IKEY")
-
-Usage
------
-  python Scraper/adzuna_scraper.py
-  python Scraper/adzuna_scraper.py --what "data scientist" --where "India" --pages 3
-  python Scraper/adzuna_scraper.py --country us --what "machine learning" --pages 5
-"""
 
 import os
 import sys
