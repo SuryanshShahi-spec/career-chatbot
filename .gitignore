@@ -1,5 +1,26 @@
+<<<<<<< HEAD
 Data/
 .env
 __pycache__/
 *.py[cod]
 *.log
+=======
+# Ignore a specific file
+secret_config.json
+
+# Ignore a whole directory (always append a trailing slash)
+node_modules/
+/build/
+
+# Ignore all files ending with a specific extension
+*.log
+*.tmp
+.env
+__pycache__/
+*.pyc
+chroma_db/
+.venv/
+test/
+redis_test.py
+my_redis.py
+>>>>>>> 98d70a303e60dd24448c4cbca4f59a10bbf6a43b
