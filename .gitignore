@@ -1,0 +1,5 @@
+Data/
+.env
+__pycache__/
+*.py[cod]
+*.log
