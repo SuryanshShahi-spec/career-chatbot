@@ -1,25 +1,30 @@
 <<<<<<< HEAD
 # Job Search Assistant
 
-A lightweight assistant for helping with job search tasks such as resume parsing, company lookup, and chatbot interactions.
+A Streamlit-based job search assistant with authentication, a monitoring dashboard, and tools for chatbot job search, company lookup, and resume parsing/analyzing.
 
-## Features
-- Resume parsing support
-- Company lookup utilities
-- Chatbot workflow helpers
+## What the app includes
+- Login and sign-up flow
+- Dashboard with monitoring metrics
+- Sidebar navigation for:
+  - Account
+  - Chatbot
+  - Company lookup
+  - Resume analyzer
+  - Resume parser
 
-## Project Structure
-- Assets/: core scripts and helpers
-- Data/: local data files (ignored by git)
+## Main entry point
+Run the app with:
+- .\.venv\Scripts\python.exe -m streamlit run app.py
 
-## Getting Started
-1. Clone the repository.
-2. Install required Python dependencies.
-3. Run the scripts in the Assets folder as needed.
+## Project structure
+- Assets/: reusable job search tools and helpers
+- Data/: sample data and uploaded resume files
+- metrics/: SQLite monitoring database
 
 ## Notes
 - Keep sensitive environment variables in a local .env file.
-- The Data directory and .env file are ignored by git.
+- The app uses the existing modules in Assets as the underlying tools without modifying them.
 =======
 # AI Job Search Chatbot — Repository Analysis
 

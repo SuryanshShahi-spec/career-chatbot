@@ -1,83 +1,225 @@
+"""
+scraper.py — Adzuna job search with comprehensive error handling + monitoring.
+
+Error handling:
+  - Fail-fast credential validation at module load
+  - Retry on transient network / 5xx errors (3 attempts, exponential back-off)
+  - Typed RateLimitError on HTTP 429 with Retry-After support
+  - AuthError on 401 / 403
+  - Separate handling for connection errors vs. read timeouts
+  - Safe JSON parsing with a fallback error message
+
+Monitoring:
+  - Every search outcome recorded via monitor.record_search()
+  - Every HTTP round-trip recorded via monitor.record_api_call()
+  - Latency measured with time.perf_counter() around _fetch_jobs()
+"""
+
 import os
+import time as _time
 import requests
+from requests.exceptions import ConnectionError as ReqConnectionError, Timeout, RequestException
 from dotenv import load_dotenv
+
+from monitor import monitor as _monitor
+
+from errors import (
+    get_logger,
+    handle_http_status,
+    retry_with_backoff,
+    require_env_vars,
+    AuthError,
+    RateLimitError,
+    NetworkError,
+    APIError,
+)
 
 load_dotenv()
 
-ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
-ADZUNA_API_KEY = os.getenv("ADZUNA_API_KEY")
+logger = get_logger("scraper.adzuna")
+
+# ── Credential validation (fail fast at import time) ──────────────────────────
+try:
+    _creds = require_env_vars("Adzuna", "ADZUNA_APP_ID", "ADZUNA_API_KEY")
+    ADZUNA_APP_ID = _creds["ADZUNA_APP_ID"]
+    ADZUNA_API_KEY = _creds["ADZUNA_API_KEY"]
+    _CREDS_OK = True
+except AuthError as _auth_err:
+    logger.error("Adzuna credentials missing: %s", _auth_err)
+    ADZUNA_APP_ID = ADZUNA_API_KEY = None
+    _CREDS_OK = False
+
+# ── Constants ──────────────────────────────────────────────────────────────────
+CONNECT_TIMEOUT = 5   # seconds to establish TCP connection
+READ_TIMEOUT    = 15  # seconds to wait for the server to respond
 
 
-def job_scrape(job_title: str, location: str, country_code: str = "in", results_per_page: int = 5) -> str:
+# ── Core HTTP fetch (decorated with retry) ─────────────────────────────────────
+
+@retry_with_backoff(
+    max_retries=3,
+    base_delay=1.0,
+    max_delay=30.0,
+    retryable_exceptions=(NetworkError, APIError),
+    logger=logger,
+)
+def _fetch_jobs(url: str, params: dict) -> dict:
+    """
+    Make a single HTTP GET to Adzuna and return the parsed JSON body.
+
+    Raises:
+        NetworkError   on connection failure or timeout
+        AuthError      on 401 / 403
+        RateLimitError on 429
+        APIError       on other non-2xx responses
+    """
+    logger.debug("GET %s params=%s", url, {k: v for k, v in params.items() if k != "app_key"})
+    try:
+        response = requests.get(url, params=params, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+    except Timeout:
+        raise NetworkError("Adzuna", "Request timed out (connect=5s, read=15s).")
+    except ReqConnectionError as exc:
+        raise NetworkError("Adzuna", f"Connection refused or DNS failure: {exc}")
+    except RequestException as exc:
+        raise NetworkError("Adzuna", f"Unexpected request error: {exc}")
+
+    # Raises typed exception for any non-2xx status
+    handle_http_status(response, "Adzuna")
+
+    # Safe JSON parse
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise APIError("Adzuna", response.status_code, f"Invalid JSON in response: {exc}")
+
+
+# ── Public interface ───────────────────────────────────────────────────────────
+
+def job_scrape(
+    job_title: str,
+    location: str,
+    country_code: str = "in",
+    results_per_page: int = 5,
+) -> str:
     """
     Search for jobs using the Adzuna API.
 
     Args:
-        job_title: The job title or keyword to search for (e.g. 'Data Analyst').
-        location: The city or region to search in (e.g. 'Bangalore').
-        country_code: ISO country code, default is 'in' for India.
+        job_title:        The job title or keyword to search for (e.g. 'Data Analyst').
+        location:         The city or region to search in (e.g. 'Bangalore').
+        country_code:     ISO country code, default is 'in' for India.
         results_per_page: How many results to return (max 50).
 
     Returns:
-        A formatted string listing the jobs found, or an error message.
+        A formatted string listing the jobs found, or a user-friendly error message.
     """
-    if not ADZUNA_APP_ID or not ADZUNA_API_KEY:
-        return "❌ Error: Adzuna API credentials are missing from the .env file."
+    # Guard: credentials must be present
+    if not _CREDS_OK:
+        return (
+            "Adzuna API credentials are missing. "
+            "Set ADZUNA_APP_ID and ADZUNA_API_KEY in your .env file."
+        )
 
-    page = 1
-    url = f"https://api.adzuna.com/v1/api/jobs/{country_code.lower()}/search/{page}"
-
+    url = f"https://api.adzuna.com/v1/api/jobs/{country_code.lower()}/search/1"
     params = {
         "app_id": ADZUNA_APP_ID,
         "app_key": ADZUNA_API_KEY,
         "what": job_title,
         "where": location,
-        "results_per_page": results_per_page,
+        "results_per_page": min(int(results_per_page), 50),
     }
 
+    _t0 = _time.perf_counter()
     try:
-        response = requests.get(url, params=params, timeout=10)
-    except requests.exceptions.RequestException as e:
-        return f"❌ Network error while contacting Adzuna: {e}"
+        data = _fetch_jobs(url, params)
+        _latency = (_time.perf_counter() - _t0) * 1000
+    except AuthError as exc:
+        _latency = (_time.perf_counter() - _t0) * 1000
+        logger.error("Auth failure: %s", exc)
+        _monitor.record_search(job_title, location, country_code, results_per_page,
+                               0, 0, _latency, "error", type(exc).__name__)
+        _monitor.record_api_call("adzuna", "job_search", _latency,
+                                 status_code=401, success=False, error_type=type(exc).__name__)
+        return f"Authentication error with Adzuna API. Check your credentials. ({exc})"
+    except RateLimitError as exc:
+        _latency = (_time.perf_counter() - _t0) * 1000
+        wait_hint = f" Please wait {exc.retry_after:.0f}s before retrying." if exc.retry_after else ""
+        logger.warning("Rate limit: %s", exc)
+        _monitor.record_search(job_title, location, country_code, results_per_page,
+                               0, 0, _latency, "error", "RateLimitError")
+        _monitor.record_api_call("adzuna", "job_search", _latency,
+                                 status_code=429, success=False, error_type="RateLimitError")
+        return f"Adzuna rate limit reached.{wait_hint}"
+    except NetworkError as exc:
+        _latency = (_time.perf_counter() - _t0) * 1000
+        logger.error("Network error after retries: %s", exc)
+        _monitor.record_search(job_title, location, country_code, results_per_page,
+                               0, 0, _latency, "error", "NetworkError")
+        _monitor.record_api_call("adzuna", "job_search", _latency,
+                                 status_code=0, success=False, error_type="NetworkError")
+        return f"Could not reach Adzuna (network error). Check your internet connection. ({exc})"
+    except APIError as exc:
+        _latency = (_time.perf_counter() - _t0) * 1000
+        logger.error("API error after retries: %s", exc)
+        _monitor.record_search(job_title, location, country_code, results_per_page,
+                               0, 0, _latency, "error", "APIError")
+        _monitor.record_api_call("adzuna", "job_search", _latency,
+                                 status_code=exc.status_code, success=False, error_type="APIError")
+        return f"Adzuna API returned an error (HTTP {exc.status_code}). Try again later."
+    except Exception as exc:
+        _latency = (_time.perf_counter() - _t0) * 1000
+        logger.exception("Unexpected error in job_scrape: %s", exc)
+        _monitor.record_search(job_title, location, country_code, results_per_page,
+                               0, 0, _latency, "error", type(exc).__name__)
+        _monitor.record_api_call("adzuna", "job_search", _latency,
+                                 status_code=0, success=False, error_type=type(exc).__name__)
+        return f"An unexpected error occurred while searching for jobs: {exc}"
 
-    if response.status_code != 200:
-        return f"❌ API Error {response.status_code}: {response.text}"
-
-    data = response.json()
-    results = data.get("results", [])
+    results      = data.get("results", [])
+    total        = data.get("count", len(results))
+    returned_cnt = len(results)
 
     if not results:
-        return f"⚠️ No jobs found for '{job_title}' in '{location}'. Try a broader search."
+        _monitor.record_search(job_title, location, country_code, results_per_page,
+                               0, 0, _latency, "no_results")
+        _monitor.record_api_call("adzuna", "job_search", _latency,
+                                 status_code=200, success=True)
+        return f"No jobs found for '{job_title}' in '{location}'. Try a broader search."
 
-    total = data.get("count", len(results))
-    lines = [f"✅ Found {total} jobs for '{job_title}' in '{location}'. Showing top {len(results)}:\n"]
+    # Successful search with results
+    _monitor.record_search(job_title, location, country_code, results_per_page,
+                           returned_cnt, total, _latency, "success")
+    _monitor.record_api_call("adzuna", "job_search", _latency,
+                             status_code=200, success=True)
+    lines = [f"Found {total} jobs for '{job_title}' in '{location}'. Showing top {returned_cnt}:\n"]
     lines.append("=" * 60)
 
     for i, job in enumerate(results, start=1):
-        title = job.get("title", "N/A")
-        company = job.get("company", {}).get("display_name", "N/A")
-        loc = job.get("location", {}).get("display_name", "N/A")
-        salary_min = job.get("salary_min")
-        salary_max = job.get("salary_max")
-        link = job.get("redirect_url", "N/A")
+        title       = job.get("title", "N/A")
+        company     = job.get("company", {}).get("display_name", "N/A")
+        loc         = job.get("location", {}).get("display_name", "N/A")
+        salary_min  = job.get("salary_min")
+        salary_max  = job.get("salary_max")
+        link        = job.get("redirect_url", "N/A")
         description = job.get("description", "")[:200].strip()
 
         if salary_min and salary_max:
-            salary = f"₹{salary_min:,.0f} – ₹{salary_max:,.0f}"
+            salary = f"Rs.{salary_min:,.0f} - Rs.{salary_max:,.0f}"
         elif salary_min:
-            salary = f"From ₹{salary_min:,.0f}"
+            salary = f"From Rs.{salary_min:,.0f}"
         else:
             salary = "Not specified"
 
         lines.append(f"[{i}] {title}")
-        lines.append(f"    🏢 Company  : {company}")
-        lines.append(f"    📍 Location : {loc}")
-        lines.append(f"    💰 Salary   : {salary}")
-        lines.append(f"    📝 Summary  : {description}...")
-        lines.append(f"    🔗 Link     : {link}")
+        lines.append(f"    Company  : {company}")
+        lines.append(f"    Location : {loc}")
+        lines.append(f"    Salary   : {salary}")
+        lines.append(f"    Summary  : {description}...")
+        lines.append(f"    Link     : {link}")
         lines.append("-" * 60)
 
     return "\n".join(lines)
 
+
 if __name__ == "__main__":
-    job_scrape()
+    print(job_scrape("Data Analyst", "Bangalore"))
