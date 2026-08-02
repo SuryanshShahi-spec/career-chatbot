@@ -4,3 +4,9 @@ Data/
 __pycache__/
 *.py[cod]
 *.log
+Suryansh_Resume.pdf
+test_monitoring.py
+logs/api_errors.log
+
+logger/logger.py
+metrics/metrics.db
