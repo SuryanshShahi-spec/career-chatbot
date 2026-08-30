@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Job Search AI — Dashboard</title>
+  <meta name="description" content="AI-powered job search dashboard: ATS analyzer, salary tools, company research, interview prep and more.">
+  <link rel="stylesheet" href="style.css?v=3">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo-row">
+      <div class="logo-mark">🤖</div>
+      <h1>Job Search AI</h1>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="nav-label">Main</div>
+      <button class="nav-btn active" data-view="view-chat"><div class="nav-icon">💬</div><span>AI Assistant</span></button>
+      <button class="nav-btn" data-view="view-jobs"><div class="nav-icon">🔍</div><span>Job Search</span></button>
+      <div class="nav-label">Tools</div>
+      <button class="nav-btn" data-view="view-ats"><div class="nav-icon">📄</div><span>Resume &amp; ATS</span></button>
+      <button class="nav-btn" data-view="view-salary"><div class="nav-icon">💰</div><span>Salary Tools</span></button>
+      <button class="nav-btn" data-view="view-company"><div class="nav-icon">🏢</div><span>Company Research</span></button>
+      <button class="nav-btn" data-view="view-interview"><div class="nav-icon">🎤</div><span>Interview Prep</span></button>
+      <div class="nav-label">Manage</div>
+      <button class="nav-btn" data-view="view-apps"><div class="nav-icon">📋</div><span>Applications</span></button>
+      <button class="nav-btn" data-view="view-alerts"><div class="nav-icon">🔔</div><span>Job Alerts</span></button>
+      <button class="nav-btn" data-view="view-settings"><div class="nav-icon">⚙️</div><span>Settings</span></button>
+    </nav>
+    <div class="sidebar-foot"><div class="dot"></div><span>API Live</span></div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ── AI CHAT ── -->
+    <section id="view-chat" class="view active">
+      <div class="chat-wrap">
+        <div class="chat-bar">
+          <div class="chat-bar-left">
+            <div class="chat-av">🤖</div>
+            <div>
+              <h3>AI Job Assistant</h3>
+              <p><span class="dot" style="display:inline-block;margin-right:4px;"></span>Online · Ask me anything</p>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="clearChat"><i class="fa fa-trash"></i> Clear</button>
+        </div>
+
+        <div class="chat-msgs" id="chatMsgs">
+          <div class="msg bot">
+            <div class="msg-av">🤖</div>
+            <div class="msg-bub">
+              <p>👋 Hi! I'm your <strong>Job Search AI Assistant</strong>. I can help you:</p>
+              <p>🔍 Find jobs &nbsp;·&nbsp; 📄 Analyze your resume &nbsp;·&nbsp; 🏢 Research companies &nbsp;·&nbsp; 🎤 Prep for interviews &nbsp;·&nbsp; 💰 Calculate salaries</p>
+              <p>Try the quick prompts below, or use the sidebar for dedicated tools.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-foot">
+          <div class="quick-row">
+            <div class="qchip" data-p="Find Python Developer jobs in Bangalore">🔍 Python jobs in Bangalore</div>
+            <div class="qchip" data-p="Research Google as a company for a job seeker">🏢 Research Google</div>
+            <div class="qchip" data-p="Give me behavioral interview questions for Software Engineer">🎤 Interview questions</div>
+            <div class="qchip" data-p="What is the average salary for a Data Scientist in India?">💰 DS salary India</div>
+          </div>
+          <form id="chatForm">
+            <div class="chat-input-wrap">
+              <textarea id="chatIn" placeholder="Ask about jobs, companies, resume, salary..." rows="1"></textarea>
+              <button type="submit" class="send-btn" id="sendBtn"><i class="fa fa-paper-plane"></i></button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── JOB SEARCH ── -->
+    <section id="view-jobs" class="view">
+      <div class="ph"><h2>🔍 Job Search</h2><p>Search live job postings with smart filters for notice period, remote work, and location.</p></div>
+      <div class="g2" style="margin-bottom:18px">
+        <div class="card">
+          <div class="card-title">Search Parameters</div>
+          <form id="jobForm">
+            <div class="fg"><label>Job Title</label><input id="jt" placeholder="e.g. Software Engineer" required></div>
+            <div class="fg"><label>Location</label><input id="jl" placeholder="e.g. Bangalore, Mumbai"></div>
+            <div class="g2" style="gap:10px">
+              <div class="fg" style="margin:0"><label>Results</label>
+                <select id="jr"><option value="5">5</option><option value="10" selected>10</option><option value="15">15</option></select>
+              </div>
+              <div class="fg" style="margin:0"><label>Max Notice (days)</label><input type="number" id="jn" placeholder="e.g. 30"></div>
+            </div>
+            <div class="fg" style="flex-direction:row;align-items:center;gap:8px;margin-top:12px">
+              <input type="checkbox" id="jwfh" style="width:auto"><label for="jwfh">Remote / WFH only</label>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:6px">
+              <button type="submit" class="btn btn-primary" id="jobBtn" style="flex:1">
+                <span class="bt">Search Jobs</span><div class="spinner hidden"></div>
+              </button>
+              <button type="button" class="btn btn-cyan" id="cityBtn" style="flex:1">
+                <span class="bt">Top 5 Cities</span><div class="spinner hidden"></div>
+              </button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Quick Searches</div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <button class="btn btn-secondary" onclick="qJob('Software Engineer','Bangalore')">🏙️ SWE · Bangalore</button>
+            <button class="btn btn-secondary" onclick="qJob('Data Scientist','Mumbai')">📊 Data Scientist · Mumbai</button>
+            <button class="btn btn-secondary" onclick="qJob('Product Manager','Delhi')">🗂️ Product Manager · Delhi</button>
+            <button class="btn btn-secondary" onclick="qJob('Frontend Developer','Pune')">💻 Frontend Dev · Pune</button>
+            <button class="btn btn-secondary" onclick="qJob('DevOps Engineer','Hyderabad')">⚙️ DevOps · Hyderabad</button>
+            <button class="btn btn-secondary" onclick="qJob('ML Engineer','Remote')">🤖 ML Engineer · Remote</button>
+          </div>
+        </div>
+      </div>
+      <div id="jobOut" style="display:flex;flex-direction:column;gap:11px"></div>
+    </section>
+
+    <!-- ── RESUME & ATS ── -->
+    <section id="view-ats" class="view">
+      <div class="ph"><h2>📄 Resume &amp; ATS Analyzer</h2><p>Score your resume against any job description and get keyword gap analysis.</p></div>
+      <div class="g2" style="margin-bottom:16px">
+        <div class="card"><div class="card-title">Resume Text</div><textarea id="atsResume" rows="11" placeholder="Paste your full resume text here..."></textarea></div>
+        <div class="card"><div class="card-title">Job Description</div><textarea id="atsJD" rows="11" placeholder="Paste the target job description here..."></textarea></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:22px">
+        <button class="btn btn-primary" id="atsBtn" style="flex:1"><span class="bt"><i class="fa fa-chart-line"></i> Analyze &amp; Score</span><div class="spinner hidden"></div></button>
+        <button class="btn btn-secondary" id="gapBtn" style="flex:1"><span class="bt"><i class="fa fa-search"></i> Gap Analysis Only</span><div class="spinner hidden"></div></button>
+      </div>
+      <div id="atsOut" style="display:none">
+        <div class="g2" style="margin-bottom:16px">
+          <div class="card">
+            <div class="card-title">ATS Score</div>
+            <div class="score-wrap">
+              <div class="ring-box">
+                <svg width="110" height="110" viewBox="0 0 110 110">
+                  <circle class="ring-bg" cx="55" cy="55" r="49"/>
+                  <circle class="ring-fill" id="ringFill" cx="55" cy="55" r="49"/>
+                </svg>
+                <div class="ring-txt"><span class="ring-num" id="ringNum">0</span><span class="ring-lbl">/ 100</span></div>
+              </div>
+              <div style="flex:1" id="scoreBars"></div>
+            </div>
+          </div>
+          <div class="card"><div class="card-title">Keyword Match</div><div id="kwOut"></div></div>
+        </div>
+        <div class="card" id="recCard"><div class="card-title"><i class="fa fa-lightbulb"></i> Recommendations</div><div id="recOut" style="font-size:13.5px;line-height:1.75;color:var(--t2)"></div></div>
+      </div>
+    </section>
+
+    <!-- ── SALARY ── -->
+    <section id="view-salary" class="view">
+      <div class="ph"><h2>💰 Salary Tools</h2><p>Calculate your salary breakdown or research market salary bands by role.</p></div>
+      <div class="tabs" id="salTabs">
+        <button class="tab-btn active" data-tab="sal-calc">Calculator</button>
+        <button class="tab-btn" data-tab="sal-research">Market Research</button>
+      </div>
+      <div id="sal-calc">
+        <div class="g2" style="margin-bottom:18px">
+          <div class="card">
+            <div class="card-title">Input Details</div>
+            <div class="fg"><label>Basic Monthly Salary (₹)</label><input type="number" id="sb" value="50000" placeholder="e.g. 50000"></div>
+            <div class="g2" style="gap:10px">
+              <div class="fg" style="margin:0"><label>HRA %</label><input type="number" id="sh" value="15"></div>
+              <div class="fg" style="margin:0"><label>DA %</label><input type="number" id="sd" value="5"></div>
+            </div>
+            <div class="g2" style="gap:10px;margin-top:12px;margin-bottom:14px">
+              <div class="fg" style="margin:0"><label>TA %</label><input type="number" id="st" value="2"></div>
+              <div class="fg" style="margin:0"><label>Currency</label>
+                <select id="sc"><option value="INR">INR ₹</option><option value="USD">USD $</option><option value="EUR">EUR €</option><option value="GBP">GBP £</option></select>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="salBtn" style="width:100%"><span class="bt"><i class="fa fa-calculator"></i> Calculate</span><div class="spinner hidden"></div></button>
+          </div>
+          <div class="card" id="salBD" style="display:none"><div class="card-title">Breakdown</div><div id="salBDIn"></div></div>
+        </div>
+        <div id="salStats" class="g3" style="display:none"></div>
+      </div>
+      <div id="sal-research" style="display:none">
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-title">Search Parameters</div>
+          <div class="g2" style="gap:10px;margin-bottom:14px">
+            <div class="fg" style="margin:0"><label>Job Title</label><input id="srTitle" placeholder="e.g. Data Scientist"></div>
+            <div class="fg" style="margin:0"><label>Location (optional)</label><input id="srLoc" placeholder="e.g. Bangalore"></div>
+          </div>
+          <button class="btn btn-primary" id="srBtn"><span class="bt"><i class="fa fa-chart-bar"></i> Research Salaries</span><div class="spinner hidden"></div></button>
+        </div>
+        <div id="srOut" style="display:none"></div>
+      </div>
+    </section>
+
+    <!-- ── COMPANY RESEARCH ── -->
+    <section id="view-company" class="view">
+      <div class="ph"><h2>🏢 Company Research</h2><p>Get AI-powered summaries covering culture, tech stack, hiring signals, and recent news.</p></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-title">Research a Company</div>
+        <div style="display:flex;gap:10px;margin-bottom:12px">
+          <input id="coName" placeholder="e.g. Google, Infosys, Razorpay..." style="flex:1">
+          <button class="btn btn-primary" id="coBtn"><span class="bt"><i class="fa fa-search"></i> Research</span><div class="spinner hidden"></div></button>
+        </div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:11.5px;color:var(--t3)">Quick:</span>
+          <button class="btn btn-secondary btn-sm" onclick="doCompany('Google')">Google</button>
+          <button class="btn btn-secondary btn-sm" onclick="doCompany('Microsoft')">Microsoft</button>
+          <button class="btn btn-secondary btn-sm" onclick="doCompany('Infosys')">Infosys</button>
+          <button class="btn btn-secondary btn-sm" onclick="doCompany('Zomato')">Zomato</button>
+          <button class="btn btn-secondary btn-sm" onclick="doCompany('Razorpay')">Razorpay</button>
+          <button class="btn btn-secondary btn-sm" onclick="doCompany('Flipkart')">Flipkart</button>
+        </div>
+      </div>
+      <div id="coOut" class="company-out">
+        <div class="co-title" id="coTitle"></div>
+        <div class="co-body" id="coBody"></div>
+      </div>
+    </section>
+
+    <!-- ── INTERVIEW PREP ── -->
+    <section id="view-interview" class="view">
+      <div class="ph"><h2>🎤 Interview Prep</h2><p>Generate tailored questions, mock interviews, STAR guidance, and red flag tips.</p></div>
+      <div class="action-grid" id="actionGrid">
+        <div class="ac sel" data-action="questions"><div class="ai">❓</div><div class="an">Interview Questions</div><div class="ad">Behavioral, technical, situational</div></div>
+        <div class="ac" data-action="mock_interview"><div class="ai">🎭</div><div class="an">Mock Interview</div><div class="ad">Personalized full scenario</div></div>
+        <div class="ac" data-action="star_guide"><div class="ai">⭐</div><div class="an">STAR Method</div><div class="ad">Framework with examples</div></div>
+        <div class="ac" data-action="analyze_jd"><div class="ai">📝</div><div class="an">Analyze JD</div><div class="ad">Questions from job description</div></div>
+        <div class="ac" data-action="red_flags"><div class="ai">🚩</div><div class="an">Red &amp; Green Flags</div><div class="ad">What to watch for</div></div>
+        <div class="ac" data-action="summary"><div class="ai">📋</div><div class="an">Full Prep Summary</div><div class="ad">Comprehensive guide</div></div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Parameters</div>
+        <div class="g2" style="gap:10px;margin-bottom:10px">
+          <div class="fg" style="margin:0"><label>Job Title</label><input id="ivTitle" placeholder="e.g. Software Engineer"></div>
+          <div class="fg" style="margin:0"><label>Company</label><input id="ivCo" placeholder="e.g. Google"></div>
+        </div>
+        <div class="g2" style="gap:10px;margin-bottom:10px">
+          <div class="fg" style="margin:0"><label>Category</label>
+            <select id="ivCat"><option value="all">All</option><option value="behavioral">Behavioral</option><option value="technical">Technical</option><option value="situational">Situational</option><option value="company_culture">Company Culture</option></select>
+          </div>
+          <div class="fg" style="margin:0"><label>Experience Level</label>
+            <select id="ivLvl"><option value="junior">Junior</option><option value="mid" selected>Mid</option><option value="senior">Senior</option></select>
+          </div>
+        </div>
+        <div class="fg" id="ivJdGroup" style="display:none"><label>Job Description (for Analyze JD)</label><textarea id="ivJD" rows="4" placeholder="Paste JD to generate targeted questions..."></textarea></div>
+        <button class="btn btn-primary" id="ivBtn" style="width:100%"><span class="bt"><i class="fa fa-play"></i> Generate</span><div class="spinner hidden"></div></button>
+      </div>
+      <div id="ivOut" class="iv-result"></div>
+    </section>
+
+    <!-- ── MY APPLICATIONS ── -->
+    <section id="view-apps" class="view">
+      <div class="ph"><h2>📋 My Applications</h2><p>Track all your job applications in one place.</p></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-title"><i class="fa fa-plus"></i> Add Application</div>
+        <form id="appForm">
+          <div class="g2" style="gap:10px;margin-bottom:10px">
+            <div class="fg" style="margin:0"><label>Job Title</label><input id="apTitle" placeholder="e.g. Software Engineer" required></div>
+            <div class="fg" style="margin:0"><label>Company</label><input id="apCo" placeholder="e.g. Google" required></div>
+          </div>
+          <div class="g2" style="gap:10px;margin-bottom:10px">
+            <div class="fg" style="margin:0"><label>Location</label><input id="apLoc" placeholder="e.g. Bangalore"></div>
+            <div class="fg" style="margin:0"><label>Status</label>
+              <select id="apSt"><option value="Applied">Applied</option><option value="Interviewing">Interviewing</option><option value="Offered">Offered</option><option value="Rejected">Rejected</option></select>
+            </div>
+          </div>
+          <div class="fg" style="margin-bottom:14px"><label>Notes</label><input id="apNotes" placeholder="e.g. Got referral from alumni"></div>
+          <button type="submit" class="btn btn-primary" id="apBtn"><span class="bt"><i class="fa fa-plus"></i> Save Application</span><div class="spinner hidden"></div></button>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between">
+          <span>All Applications</span>
+          <button class="btn btn-secondary btn-sm" id="apRefresh"><i class="fa fa-sync"></i> Refresh</button>
+        </div>
+        <div id="apTable"><div class="empty"><div class="ei">📋</div><p>No applications yet — add your first one above.</p></div></div>
+      </div>
+    </section>
+
+    <!-- ── JOB ALERTS ── -->
+    <section id="view-alerts" class="view">
+      <div class="ph"><h2>🔔 Job Alerts</h2><p>Subscribe to personalized job alerts delivered to your inbox.</p></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">Create New Alert</div>
+          <form id="alertForm">
+            <div class="fg"><label>Email Address</label><input type="email" id="alEmail" placeholder="you@example.com" required></div>
+            <div class="fg"><label>Job Title</label><input id="alTitle" placeholder="e.g. Software Engineer" required></div>
+            <div class="fg"><label>Location</label><input id="alLoc" placeholder="e.g. Bangalore, Remote" required></div>
+            <div class="fg"><label>Frequency</label>
+              <select id="alFreq"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="instantly">Instantly</option></select>
+            </div>
+            <button type="submit" class="btn btn-primary" id="alBtn" style="width:100%"><span class="bt"><i class="fa fa-bell"></i> Subscribe</span><div class="spinner hidden"></div></button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">How It Works</div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;gap:12px"><span style="font-size:20px">📬</span><div><div style="font-weight:600;font-size:13.5px;margin-bottom:3px">Email Delivery</div><div style="font-size:12.5px;color:var(--t2)">Receive curated job matches directly to your inbox.</div></div></div>
+            <div style="display:flex;gap:12px"><span style="font-size:20px">⚡</span><div><div style="font-weight:600;font-size:13.5px;margin-bottom:3px">Real-time Matching</div><div style="font-size:12.5px;color:var(--t2)">AI scans new postings and filters by your preferences.</div></div></div>
+            <div style="display:flex;gap:12px"><span style="font-size:20px">🎯</span><div><div style="font-weight:600;font-size:13.5px;margin-bottom:3px">Smart Filters</div><div style="font-size:12.5px;color:var(--t2)">Supports notice period, WFH, and city preferences.</div></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SETTINGS ── -->
+    <section id="view-settings" class="view">
+      <div class="ph"><h2>⚙️ Settings</h2><p>Manage your account, job preferences, and notification settings.</p></div>
+      <div class="tabs" id="setTabs">
+        <button class="tab-btn active" data-tab="set-account">Account</button>
+        <button class="tab-btn" data-tab="set-prefs">Preferences</button>
+        <button class="tab-btn" data-tab="set-notifs">Notifications</button>
+      </div>
+      <!-- Account -->
+      <div id="set-account">
+        <div class="card" style="margin-bottom:16px">
+          <div class="set-label">Register</div>
+          <div class="g2" style="gap:10px;margin-bottom:10px">
+            <div class="fg" style="margin:0"><label>Full Name</label><input id="rName" placeholder="John Doe"></div>
+            <div class="fg" style="margin:0"><label>Email</label><input type="email" id="rEmail" placeholder="you@example.com"></div>
+          </div>
+          <div class="g2" style="gap:10px;margin-bottom:14px">
+            <div class="fg" style="margin:0"><label>Password</label><input type="password" id="rPwd" placeholder="••••••••"></div>
+            <div class="fg" style="margin:0"><label>Phone</label><input type="tel" id="rPhone" placeholder="+91 9876543210"></div>
+          </div>
+          <button class="btn btn-primary" id="regBtn"><span class="bt"><i class="fa fa-user-plus"></i> Register</span><div class="spinner hidden"></div></button>
+        </div>
+        <div class="card">
+          <div class="set-label">Login</div>
+          <div class="g2" style="gap:10px;margin-bottom:14px">
+            <div class="fg" style="margin:0"><label>Email</label><input type="email" id="lEmail" placeholder="you@example.com"></div>
+            <div class="fg" style="margin:0"><label>Password</label><input type="password" id="lPwd" placeholder="••••••••"></div>
+          </div>
+          <button class="btn btn-primary" id="loginBtn"><span class="bt"><i class="fa fa-sign-in-alt"></i> Login</span><div class="spinner hidden"></div></button>
+          <div id="loginOut" class="rbox" style="display:none;margin-top:12px"></div>
+        </div>
+      </div>
+      <!-- Prefs -->
+      <div id="set-prefs" style="display:none">
+        <div class="card">
+          <div class="set-label">Job Preferences</div>
+          <div class="fg"><label>Preferred Locations (comma-separated)</label><input id="pLocs" placeholder="e.g. Bangalore, Pune, Remote"></div>
+          <div class="fg"><label>Target Roles (comma-separated)</label><input id="pRoles" placeholder="e.g. Software Engineer, Data Scientist"></div>
+          <div class="g2" style="gap:10px;margin-bottom:14px">
+            <div class="fg" style="margin:0"><label>Max Notice Period (days)</label><input type="number" id="pNotice" placeholder="e.g. 30"></div>
+            <div class="fg" style="flex-direction:row;align-items:center;gap:8px;margin:auto 0 0"><input type="checkbox" id="pWfh" style="width:auto"><label for="pWfh">Remote/WFH required</label></div>
+          </div>
+          <button class="btn btn-primary" id="prefsBtn"><span class="bt"><i class="fa fa-save"></i> Save Preferences</span><div class="spinner hidden"></div></button>
+        </div>
+      </div>
+      <!-- Notifs -->
+      <div id="set-notifs" style="display:none">
+        <div class="card">
+          <div class="set-label">Notification Preferences</div>
+          <div class="g2" style="gap:10px;margin-bottom:14px">
+            <div class="fg" style="margin:0"><label>User ID</label><input type="number" id="nUid" placeholder="e.g. 1"></div>
+            <div class="fg" style="margin:0"><label>Preference</label>
+              <select id="nPref"><option value="Immediate">Immediate</option><option value="Daily">Daily Digest</option><option value="Weekly">Weekly</option><option value="OFF">Off</option></select>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="notifBtn"><span class="bt"><i class="fa fa-bell"></i> Update</span><div class="spinner hidden"></div></button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<script src="app.js?v=3"></script>
+</body>
+</html>

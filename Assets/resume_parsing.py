@@ -23,5 +23,32 @@ def clean_text(text):
     
     return text.strip()
 
+try:
+    import spacy
+    try:
+        nlp = spacy.load("en_core_web_sm")
+    except OSError:
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+        nlp = spacy.load("en_core_web_sm")
+except ImportError:
+    nlp = None
+
+def extract_entities(text: str) -> dict:
+    if nlp is None:
+        return {"error": "spacy not installed"}
+    
+    doc = nlp(text)
+    entities = {
+        "organizations": list(set(ent.text for ent in doc.ents if ent.label_ == "ORG")),
+        "locations": list(set(ent.text for ent in doc.ents if ent.label_ in ("GPE", "LOC"))),
+        "dates": list(set(ent.text for ent in doc.ents if ent.label_ == "DATE")),
+        "noun_chunks": list(set(chunk.text.strip() for chunk in doc.noun_chunks if len(chunk.text.strip()) > 3))
+    }
+    return entities
+
 if __name__ == "__main__":
-    print(clean_text(text_extractor("Data/Suryansh_Resume.pdf")))
+    text = clean_text(text_extractor("Data/Suryansh_Resume.pdf"))
+    print(text[:500])
+    print(extract_entities(text))

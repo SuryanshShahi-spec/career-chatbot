@@ -16,6 +16,7 @@ Monitoring:
 """
 
 import os
+import re
 import time as _time
 import requests
 from requests.exceptions import ConnectionError as ReqConnectionError, Timeout, RequestException
@@ -93,6 +94,92 @@ def _fetch_jobs(url: str, params: dict) -> dict:
         raise APIError("Adzuna", response.status_code, f"Invalid JSON in response: {exc}")
 
 
+def _normalize_text(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _extract_notice_period_days(description: str | None) -> int | None:
+    text = _normalize_text(description)
+    if not text:
+        return None
+
+    if re.search(r"\b(immediate|immediately)\b", text):
+        return 0
+
+    match = re.search(r"(\d+)\s*(?:days?|d)\s*(?:notice|notice period|join|joining)", text)
+    if match:
+        return int(match.group(1))
+
+    match = re.search(r"(\d+)\s*(?:month|months|mth|mths)\s*(?:notice|notice period|join|joining)", text)
+    if match:
+        return int(match.group(1)) * 30
+
+    if "notice period" in text:
+        match = re.search(r"(\d+)\s*(?:days?|months?|mth|mths)", text)
+        if match:
+            value = int(match.group(1))
+            unit = re.search(r"(?:days?|d)\b|(?:month|months|mth|mths)\b", text)
+            if unit and "month" in unit.group(0):
+                return value * 30
+            return value
+
+    return None
+
+
+def _matches_notice_period(job: dict, max_notice_days: int) -> bool:
+    description = job.get("description") or ""
+    notice_days = _extract_notice_period_days(description)
+    if notice_days is None:
+        return True
+    return notice_days <= int(max_notice_days)
+
+
+def _matches_remote(job: dict, require_remote: bool) -> bool:
+    text = _normalize_text((job.get("description") or "") + " " + (job.get("title") or ""))
+    remote_markers = {
+        "remote", "work from home", "wfh", "work-from-home", "remote friendly", "hybrid",
+        "distributed", "virtual"
+    }
+    has_remote_marker = any(marker in text for marker in remote_markers)
+    if require_remote:
+        return has_remote_marker
+    return not has_remote_marker
+
+
+def _matches_location(job: dict, preferred_locations: list[str]) -> bool:
+    if not preferred_locations:
+        return True
+
+    location_text = _normalize_text(job.get("location", {}).get("display_name"))
+    normalized = [loc.strip().lower() for loc in preferred_locations if str(loc).strip()]
+    if not normalized:
+        return True
+    return any(city in location_text for city in normalized)
+
+
+def filter_jobs_for_preferences(
+    jobs: list[dict],
+    notice_period_days: int | None = None,
+    work_from_home: bool | None = None,
+    preferred_locations: list[str] | None = None,
+) -> list[dict]:
+    """Return only jobs matching the user-side preference filters."""
+    if not isinstance(jobs, list):
+        return []
+
+    normalized_locations = [str(loc).strip() for loc in (preferred_locations or []) if str(loc).strip()]
+    filtered = []
+    for job in jobs:
+        if notice_period_days is not None and not _matches_notice_period(job, notice_period_days):
+            continue
+        if work_from_home is not None and not _matches_remote(job, work_from_home):
+            continue
+        if normalized_locations and not _matches_location(job, normalized_locations):
+            continue
+        filtered.append(job)
+    return filtered
+
+
 # ── Public interface ───────────────────────────────────────────────────────────
 
 def job_scrape(
@@ -100,18 +187,12 @@ def job_scrape(
     location: str,
     country_code: str = "in",
     results_per_page: int = 5,
+    notice_period_days: int | None = None,
+    work_from_home: bool | None = None,
+    preferred_locations: list[str] | None = None,
 ) -> str:
     """
-    Search for jobs using the Adzuna API.
-
-    Args:
-        job_title:        The job title or keyword to search for (e.g. 'Data Analyst').
-        location:         The city or region to search in (e.g. 'Bangalore').
-        country_code:     ISO country code, default is 'in' for India.
-        results_per_page: How many results to return (max 50).
-
-    Returns:
-        A formatted string listing the jobs found, or a user-friendly error message.
+    Search for jobs using the Adzuna API and apply the optional job-fit filters.
     """
     # Guard: credentials must be present
     if not _CREDS_OK:
@@ -175,8 +256,14 @@ def job_scrape(
                                  status_code=0, success=False, error_type=type(exc).__name__)
         return f"An unexpected error occurred while searching for jobs: {exc}"
 
-    results      = data.get("results", [])
-    total        = data.get("count", len(results))
+    raw_results = data.get("results", [])
+    results = filter_jobs_for_preferences(
+        raw_results,
+        notice_period_days=notice_period_days,
+        work_from_home=work_from_home,
+        preferred_locations=preferred_locations,
+    )
+    total = data.get("count", len(raw_results))
     returned_cnt = len(results)
 
     if not results:
@@ -184,24 +271,26 @@ def job_scrape(
                                0, 0, _latency, "no_results")
         _monitor.record_api_call("adzuna", "job_search", _latency,
                                  status_code=200, success=True)
-        return f"No jobs found for '{job_title}' in '{location}'. Try a broader search."
+        return (
+            f"No jobs found for '{job_title}' in '{location}' matching the current filters. "
+            "Try a broader search or remove notice period / remote / location constraints."
+        )
 
-    # Successful search with results
     _monitor.record_search(job_title, location, country_code, results_per_page,
                            returned_cnt, total, _latency, "success")
     _monitor.record_api_call("adzuna", "job_search", _latency,
                              status_code=200, success=True)
-    lines = [f"Found {total} jobs for '{job_title}' in '{location}'. Showing top {returned_cnt}:\n"]
+    lines = [f"Found {returned_cnt} matching jobs for '{job_title}' in '{location}'.\n"]
     lines.append("=" * 60)
 
     for i, job in enumerate(results, start=1):
-        title       = job.get("title", "N/A")
-        company     = job.get("company", {}).get("display_name", "N/A")
-        loc         = job.get("location", {}).get("display_name", "N/A")
-        salary_min  = job.get("salary_min")
-        salary_max  = job.get("salary_max")
-        link        = job.get("redirect_url", "N/A")
-        description = job.get("description", "")[:200].strip()
+        title = job.get("title", "N/A")
+        company = job.get("company", {}).get("display_name", "N/A")
+        loc = job.get("location", {}).get("display_name", "N/A")
+        salary_min = job.get("salary_min")
+        salary_max = job.get("salary_max")
+        link = job.get("redirect_url", "N/A")
+        description = (job.get("description") or "")[:200].strip()
 
         if salary_min and salary_max:
             salary = f"Rs.{salary_min:,.0f} - Rs.{salary_max:,.0f}"
@@ -222,4 +311,4 @@ def job_scrape(
 
 
 if __name__ == "__main__":
-    print(job_scrape("Data Analyst", "Bangalore"))
+    print(job_scrape("Data Analyst", "Bangalore", notice_period_days=30, work_from_home=True))

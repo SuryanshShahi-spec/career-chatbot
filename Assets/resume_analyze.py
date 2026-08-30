@@ -1,35 +1,48 @@
-import os 
+import os
+from typing import Dict, Any
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# 1. Load the PDF file path
-pdf_path = "Data\Suryansh_Resume.pdf"  # Replace with your actual PDF filename
-loader = PyPDFLoader(pdf_path)
+load_dotenv()
 
-# 2. Extract and load pages into memory
-# This reads page content along with metadata like page numbers
-pages = loader.load()
-print(f"Successfully loaded {len(pages)} pages from the PDF.")
+class ResumeAnalyzer:
+    """Resume analysis helper for parsing PDF resumes and summarizing chunks."""
 
-# 3. Configure the Recursive Text Splitter
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,      # Maximum characters per chunk (good default for RAG pipelines)
-    chunk_overlap=200,    # 20% overlap protects context at boundaries
-    length_function=len
-)
+    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 200):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            length_function=len,
+        )
 
-# 4. Split the loaded PDF pages into smaller chunks
-# This preserves metadata like {'source': 'your_document.pdf', 'page': 0} for each chunk
-chunks = text_splitter.split_documents(pages)
+    def analyze_pdf(self, pdf_path: str) -> Dict[str, Any]:
+        """Extract text from a PDF file and split it into chunks."""
+        loader = PyPDFLoader(pdf_path)
+        pages = loader.load()
+        chunks = self.splitter.split_documents(pages)
 
-# 5. Review the chunk outputs
-print(f"Generated {len(chunks)} total text chunks.")
+        summary_text = "\n\n".join(chunk.page_content for chunk in chunks[:5])
 
-# Print an example chunk to verify structure
-if chunks:
-    sample_chunk = chunks[0]
-    print("\n--- SAMPLE CHUNK METADATA ---")
-    print(sample_chunk.metadata)
-    print("\n--- SAMPLE CHUNK CONTENT ---")
-    print(sample_chunk.page_content)
+        return {
+            "page_count": len(pages),
+            "chunk_count": len(chunks),
+            "chunks": chunks,
+            "summary_text": summary_text,
+        }
+
+    def parse_text(self, text: str) -> str:
+        """Optional helper to further process extracted resume text."""
+        cleaned = text.strip()
+        return cleaned
+
+
+if __name__ == "__main__":
+    analyzer = ResumeAnalyzer()
+    result = analyzer.analyze_pdf("Data/Suryansh_Resume.pdf")
+    print(f"Parsed {result['page_count']} pages into {result['chunk_count']} chunks.")
+    if result["chunks"]:
+        print("\n--- SAMPLE CHUNK ---")
+        print(result["chunks"][0].page_content)

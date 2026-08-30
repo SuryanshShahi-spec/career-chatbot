@@ -1,0 +1,10 @@
+frontend:
+  build: ./frontend-next
+  container_name: job_search_frontend
+  environment:
+    NEXT_PUBLIC_API_URL: /api
+  expose:
+    - "3000"
+  depends_on:
+    - api
+  restart: unless-stopped

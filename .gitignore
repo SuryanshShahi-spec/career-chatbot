@@ -10,3 +10,7 @@ logs/api_errors.log
 
 logger/logger.py
 metrics/metrics.db
+.venv/
+.pytest_cache/
+logs/
+metrics/
